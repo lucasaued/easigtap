@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: sigtap
+      POSTGRES_USER: sigtap
+      POSTGRES_PASSWORD: sigtap
+    ports:
+      - "5432:5432"
+    volumes:
+      - sigtap_pgdata:/var/lib/postgresql/data
+volumes:
+  sigtap_pgdata:
