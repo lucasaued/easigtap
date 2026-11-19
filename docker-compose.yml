@@ -1,12 +1,12 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: sigtap
       POSTGRES_USER: sigtap
       POSTGRES_PASSWORD: sigtap
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${SIGTAP_DB_PORT:-5432}:5432"
     volumes:
       - sigtap_pgdata:/var/lib/postgresql/data
 volumes:

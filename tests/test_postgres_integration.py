@@ -3,6 +3,9 @@ import os
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+
+from src.web import procedure_detail, procedures_for_cid, search_cids, search_items, search_procedures
 
 
 @pytest.mark.postgres
@@ -25,3 +28,12 @@ def test_imported_workbook_in_postgres():
         assert connection.execute(text("SELECT count(*) FROM procedimento_cid pc LEFT JOIN procedimentos p ON p.id=pc.procedimento_id LEFT JOIN cids c ON c.id=pc.cid_id WHERE p.id IS NULL OR c.id IS NULL")).scalar_one() == 0
         assert connection.execute(text("SELECT count(*) FROM procedimentos WHERE sigtap_search(nome) LIKE '%femur%' ")).scalar_one() > 0
         assert connection.execute(text("SELECT status FROM competencias WHERE referencia='2026-06'")).scalar_one() == "importado_com_pendencias"
+    with Session(engine) as session:
+        procedures = search_procedures(session, "femur", "ortopedia")
+        assert any(row["codigo"] == "0408040122" for row in procedures)
+        detail = procedure_detail(session, "0408040122")
+        assert any(cid["codigo"] == "S720" for cid in detail["cids"])
+        assert any(row["codigo"] == "S720" for row in search_cids(session, "S72.0", "ortopedia"))
+        assert any(row["codigo"] == "0408040122" for row in procedures_for_cid(session, "S720", "ortopedia"))
+        assert any(row["codigo"] == "0702031321" and row["qtd_maxima_item"] == 10
+                   for row in search_items(session, "parafuso bloqueado"))

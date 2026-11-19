@@ -60,4 +60,16 @@ Consulte também o comportamento de importação repetida, competência diferent
 
 ## Dados pendentes
 
-A planilha atual não fornece descrições completas de CIDs, compatibilidades procedimento–OPM, limites de OPM nem uma lista revisada de procedimentos das especialidades. São necessárias fontes confiáveis e conferência clínica para completar esses campos. `Qtd Máxima` da planilha é atributo do procedimento e não deve ser usada como limite de OPM. O README público permanece breve; os procedimentos operacionais ficam neste diretório.
+A planilha atual não fornece descrições completas de CIDs, uma coluna de compatibilidade procedimento–OPM, limites específicos dessa combinação nem uma lista revisada de procedimentos das especialidades. São necessárias conferência clínica e interpretação da fonte para completar esses pontos. `Qtd Máxima` é atributo da linha em que aparece: nas linhas do grupo `07`, o protótipo a usa como máximo do item, sem afirmar que seja o limite de sua combinação com uma cirurgia. O README público permanece breve; os procedimentos operacionais ficam neste diretório.
+
+## Protótipo visual local
+
+Depois de migrar e importar a planilha, execute:
+
+```powershell
+.\.venv\Scripts\python -m src.web
+```
+
+Abra `http://127.0.0.1:8000/`. O servidor escuta apenas em `127.0.0.1` por padrão. No Windows em que a porta 5432 estiver ocupada, configure `.env` com `SIGTAP_DB_PORT=55432` e `DATABASE_URL=postgresql+psycopg://sigtap:sigtap@127.0.0.1:55432/sigtap`, depois use `docker compose -p easigtap up -d --pull never db` para iniciar o banco persistente do projeto.
+
+O recorte visual inicial usa o prefixo de código `0408`; a opção “Todos os procedimentos” mantém a busca no restante da planilha. A lista apresenta até 60 resultados por consulta, portanto refine o termo se houver mais. A busca de CID funciona por código. Os itens do grupo `07` são pesquisados separadamente e só entram no resumo quando selecionados manualmente. Consulte [planilha-mvp.md](planilha-mvp.md) antes de interpretar essas escolhas como classificações ou compatibilidades clínicas.

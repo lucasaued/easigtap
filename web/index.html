@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#153b47">
+  <title>eaSIGTAP — Consulta de procedimentos</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="eaSIGTAP, início"><span class="brand-mark">e</span><span>ea<span class="brand-strong">SIGTAP</span></span></a>
+      <span class="top-note">Consulta local · HUSM/UFSM</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">PROTÓTIPO PARA TESTE</span>
+          <h1>Encontre a codificação com mais clareza.</h1>
+          <p>Consulte procedimentos e CIDs da planilha informada para junho de 2026. Navegue pelo recorte inicial de cirurgias do grupo 0408 ou explore toda a tabela.</p>
+        </div>
+        <div class="hero-fact"><span class="fact-icon">↗</span><span>Dados da planilha<br><strong>Junho de 2026</strong></span></div>
+      </section>
+
+      <section class="search-panel" aria-label="Pesquisa">
+        <div class="tabs" role="tablist" aria-label="Tipo de pesquisa">
+          <button id="tab-procedimento" class="tab active" role="tab" aria-selected="true" data-mode="procedimento">Procedimentos</button>
+          <button id="tab-cid" class="tab" role="tab" aria-selected="false" data-mode="cid">CID por código</button>
+        </div>
+        <div class="search-controls">
+          <label class="search-field"><span class="search-symbol">⌕</span><input id="query" type="search" autocomplete="off" placeholder="Busque por palavra ou código, ex.: fêmur" aria-label="Termo de pesquisa"></label>
+          <label class="scope-field"><span>Exibir</span><select id="scope"><option value="ortopedia">Grupo 0408 · cirurgias</option><option value="todos">Todos os procedimentos</option></select></label>
+        </div>
+        <p id="search-hint" class="search-hint">O grupo 0408 é um recorte inicial da planilha. A seleção final de Traumatologia e Ortopedia pode ser ajustada com a equipe clínica.</p>
+      </section>
+
+      <div class="content-grid">
+        <section class="results-panel" aria-label="Resultados">
+          <div class="section-heading"><div><span class="eyebrow dark">EXPLORAR</span><h2 id="results-title">Procedimentos</h2></div><span id="result-count" class="count">—</span></div>
+          <div id="results" class="results"><div class="empty">Carregando procedimentos…</div></div>
+        </section>
+
+        <section class="detail-panel" aria-label="Detalhes e resumo">
+          <div id="detail-placeholder" class="placeholder"><div class="placeholder-icon">✳</div><h2>Selecione um resultado</h2><p>Os detalhes do procedimento e seus CIDs aparecerão aqui.</p></div>
+          <div id="detail" hidden></div>
+        </section>
+      </div>
+
+      <aside class="source-note"><strong>Sobre os dados</strong><p>Os CIDs listados são relações presentes na planilha. O catálogo de itens do grupo 07 pode ser consultado e selecionado manualmente; a planilha não identifica, em uma coluna própria, quais itens são compatíveis com cada cirurgia. A quantidade máxima exibida pertence ao item, não à combinação com o procedimento. Confira o resultado com a equipe responsável antes do uso assistencial.</p></aside>
+    </main>
+
+    <footer>eaSIGTAP · Protótipo local para avaliação do fluxo de consulta</footer>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
