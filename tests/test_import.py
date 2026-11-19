@@ -2,10 +2,10 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
-from src.database.models import Base, Competencia, Opm, Procedimento, ProcedimentoCid, ProcedimentoOpm
+from src.database.models import Base, Cid, Competencia, Opm, Procedimento, ProcedimentoCid, ProcedimentoOpm
 from src.importers.persist import persist
 from src.importers.sigtap_excel import inspect_workbook
-from src.parsers.cids import parse_cids
+from src.parsers.cids import parse_cids, parse_cids_with_origins
 from src.parsers.procedimentos import parse_procedimento
 
 
@@ -17,7 +17,9 @@ def test_procedure_parser():
 
 
 def test_cid_parser():
-    assert parse_cids("S720, S721, S720, S72.2")[0] == ["S720", "S721", "S72.2"]
+    assert parse_cids("S720, S721, S720, S72.2")[0] == ["S720", "S721", "S722"]
+    assert parse_cids_with_origins("S720, S72.0") == ({"S720": "S720"}, [])
+    assert parse_cids_with_origins("s72.0") == ({"S720": "s72.0"}, [])
     assert parse_cids(None) == ([], [])
     assert parse_cids("M, S720")[0] == ["S720"]
     assert parse_cids("M, S720")[1]
@@ -48,5 +50,8 @@ def test_real_workbook_and_idempotence():
         assert session.scalar(select(func.count()).select_from(Competencia)) == 2
         assert session.scalar(select(func.count()).select_from(ProcedimentoCid)) == first["cid_links"] * 2
         assert session.scalar(select(func.count()).select_from(ProcedimentoCid).where(ProcedimentoCid.tipo == "secundario")) == 724
+        assert session.scalar(select(func.count()).select_from(Cid)) > 0
+        assert session.scalars(select(Competencia.status).order_by(Competencia.id)).all() == ["importado_com_pendencias"] * 2
+        assert session.scalar(select(func.count()).select_from(ProcedimentoCid).where(ProcedimentoCid.codigo_original.is_(None))) == 0
         assert session.scalar(select(func.count()).select_from(Opm)) == 0
         assert session.scalar(select(func.count()).select_from(ProcedimentoOpm)) == 0

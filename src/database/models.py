@@ -14,7 +14,7 @@ class Competencia(Base):
     arquivo: Mapped[str] = mapped_column(Text)
     sha256: Mapped[str] = mapped_column(String(64))
     importado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    status: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(40))
     origem: Mapped[dict] = mapped_column(JSON, default=dict)
     __table_args__ = (UniqueConstraint("referencia", "sha256"),)
 
@@ -46,6 +46,7 @@ class ProcedimentoCid(Base):
     cid_id: Mapped[int] = mapped_column(ForeignKey("cids.id"), primary_key=True)
     tipo: Mapped[str] = mapped_column(String(12), primary_key=True)
     competencia_id: Mapped[int] = mapped_column(ForeignKey("competencias.id"))
+    codigo_original: Mapped[str | None] = mapped_column(String(12), nullable=True)
     __table_args__ = (CheckConstraint("tipo IN ('principal', 'secundario')"), Index("ix_procedimento_cid_cid", "cid_id"))
 
 
