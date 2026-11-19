@@ -22,6 +22,7 @@ docker compose up -d db
 Copy-Item .env.example .env
 .\.venv\Scripts\python -m alembic upgrade head
 .\.venv\Scripts\python -m src.cli import-sigtap --file 'data/raw/Sigtap - UGPIA.xlsx' --competencia 2026-06 --origem 'Planilha fornecida ao projeto; competência informada pelo responsável'
+.\.venv\Scripts\python -m src.cli import-official-sigtap --file data/raw/TabelaUnificada_202606_v2610231231.zip
 ```
 
 Se a porta 5432 já estiver ocupada, use uma instância de teste isolada e uma URL temporária na sessão do PowerShell:
@@ -31,6 +32,7 @@ docker run -d --rm --name easigtap-validation-pg -e POSTGRES_DB=sigtap -e POSTGR
 $env:DATABASE_URL='postgresql+psycopg://sigtap:sigtap@127.0.0.1:55432/sigtap'
 .\.venv\Scripts\python -m alembic upgrade head
 .\.venv\Scripts\python -m src.cli import-sigtap --file 'data/raw/Sigtap - UGPIA.xlsx' --competencia 2026-06 --origem 'Planilha fornecida ao projeto; competência informada pelo responsável'
+.\.venv\Scripts\python -m src.cli import-official-sigtap --file data/raw/TabelaUnificada_202606_v2610231231.zip
 $env:EASIGTAP_TEST_DATABASE_URL=$env:DATABASE_URL
 .\.venv\Scripts\python -m pytest -q -m postgres -p no:cacheprovider
 ```
@@ -58,9 +60,15 @@ SELECT sigtap_search('FÊMUR');
 
 Consulte também o comportamento de importação repetida, competência diferente e rollback em transação de teste. Não publique um resultado como validado em PostgreSQL sem executar essas verificações nesse banco.
 
+## Complemento oficial do SIGTAP
+
+O arquivo `data/raw/TabelaUnificada_202606_v2610231231.zip` foi obtido pelo endereço FTP publicado no [feed oficial de competências](http://sigtap.datasus.gov.br/tabela-unificada/competencias.rss). SHA-256: `aae352162a1989c6fbfdb95784ba7f0bd9b664eecaa08efee3e7392dc3a6bd51`. A carga de `tb_cid.txt` preencheu as descrições dos 7.895 CIDs da planilha. A carga de `rl_procedimento_compativel.txt`, com base no layout incluído no próprio ZIP, encontrou 1.529 relações de tipo `1` entre procedimentos `0408` e OPM do grupo `07`, envolvendo 236 procedimentos e 153 OPM. A quantidade usada na interface é `QT_PERMITIDA` da relação oficial, e não o atributo `Qtd Máxima` do item na planilha. Importações repetidas da mesma fonte não duplicam relações.
+
+O [manual oficial de compatibilidades](https://wiki.saude.gov.br/sigtap/index.php/M%C3%B3dulo_Relat%C3%B3rios_de_Compatibilidades) descreve a relação entre procedimento principal e OPM. A compatibilidade é vinculada ao procedimento e à competência; selecionar um CID não restringe a lista de OPM. O CID é mantido no resumo e sua associação ao procedimento vem da planilha local. O recorte `0408` ainda precisa de revisão clínica como seleção de Traumatologia e Ortopedia.
+
 ## Dados pendentes
 
-A planilha atual não fornece descrições completas de CIDs, uma coluna de compatibilidade procedimento–OPM, limites específicos dessa combinação nem uma lista revisada de procedimentos das especialidades. São necessárias conferência clínica e interpretação da fonte para completar esses pontos. `Qtd Máxima` é atributo da linha em que aparece: nas linhas do grupo `07`, o protótipo a usa como máximo do item, sem afirmar que seja o limite de sua combinação com uma cirurgia. O README público permanece breve; os procedimentos operacionais ficam neste diretório.
+A lista de especialidades e as condições adicionais de registro e adequação clínica ainda precisam de revisão com a equipe. Uma relação de compatibilidade oficial não substitui essa conferência. O README público permanece breve; os procedimentos operacionais ficam neste diretório.
 
 ## Protótipo visual local
 
@@ -72,4 +80,4 @@ Depois de migrar e importar a planilha, execute:
 
 Abra `http://127.0.0.1:8000/`. O servidor escuta apenas em `127.0.0.1` por padrão. No Windows em que a porta 5432 estiver ocupada, configure `.env` com `SIGTAP_DB_PORT=55432` e `DATABASE_URL=postgresql+psycopg://sigtap:sigtap@127.0.0.1:55432/sigtap`, depois use `docker compose -p easigtap up -d --pull never db` para iniciar o banco persistente do projeto.
 
-O recorte visual inicial usa o prefixo de código `0408`; a opção “Todos os procedimentos” mantém a busca no restante da planilha. A lista apresenta até 60 resultados por consulta, portanto refine o termo se houver mais. A busca de CID funciona por código; o clique em um CID mostra procedimentos relacionados e suas descrições. Após selecionar um CID, a busca de itens do grupo `07` é filtrada por esse CID em comum. Os itens só entram no resumo quando selecionados. Consulte [planilha-mvp.md](planilha-mvp.md) antes de interpretar esses resultados como classificações ou compatibilidades clínicas.
+O recorte visual inicial usa o prefixo de código `0408`; a opção “Todos os procedimentos” mantém a busca no restante da planilha. A lista apresenta até 60 resultados por consulta, portanto refine o termo se houver mais. A busca de CID funciona por código ou descrição; o clique em um CID mostra procedimentos relacionados. Após selecionar um CID, a busca de OPM mostra apenas relações de compatibilidade oficiais com o procedimento. O CID selecionado não altera essa lista. Os itens só entram no resumo quando selecionados. Consulte [planilha-mvp.md](planilha-mvp.md) para os limites da seleção de especialidade e uso clínico.

@@ -23,6 +23,9 @@ def test_imported_workbook_in_postgres():
         assert {"ix_procedimentos_nome_search", "ix_cids_descricao_search"} <= indexes
         assert connection.execute(text("SELECT count(*) FROM procedimentos")).scalar_one() == 4984
         assert connection.execute(text("SELECT count(*) FROM cids")).scalar_one() == 7895
+        assert connection.execute(text("SELECT count(*) FROM cids WHERE descricao IS NOT NULL")).scalar_one() == 7895
+        assert connection.execute(text("SELECT count(*) FROM opms")).scalar_one() == 153
+        assert connection.execute(text("SELECT count(*) FROM procedimento_opm")).scalar_one() == 1529
         assert dict(connection.execute(text("SELECT tipo, count(*) FROM procedimento_cid GROUP BY tipo")).all()) == {"principal": 71238, "secundario": 362}
         assert connection.execute(text("SELECT count(*) FROM procedimento_cid WHERE codigo_original IS NULL")).scalar_one() == 0
         assert connection.execute(text("SELECT count(*) FROM procedimento_cid pc LEFT JOIN procedimentos p ON p.id=pc.procedimento_id LEFT JOIN cids c ON c.id=pc.cid_id WHERE p.id IS NULL OR c.id IS NULL")).scalar_one() == 0
@@ -32,12 +35,14 @@ def test_imported_workbook_in_postgres():
         procedures = search_procedures(session, "femur", "ortopedia")
         assert any(row["codigo"] == "0408040122" for row in procedures)
         detail = procedure_detail(session, "0408040122")
-        assert any(cid["codigo"] == "S720" for cid in detail["cids"])
+        assert any(cid["codigo"] == "S720" and cid["descricao"] and "Fratura" in cid["descricao"] for cid in detail["cids"])
         assert any(row["codigo"] == "S720" for row in search_cids(session, "S72.0", "ortopedia"))
+        assert any(row["codigo"] == "S720" for row in search_cids(session, "fratura do colo do femur", "ortopedia"))
         assert any(row["codigo"] == "0408040122" for row in procedures_for_cid(session, "S720", "ortopedia"))
-        suggestions = search_items(session, "", "0408040122", "S720")
-        assert suggestions
-        assert all(row["codigo"].startswith("07") for row in suggestions)
+        items = search_items(session, "", "0408040122", "S720")
+        assert items
+        assert any(row["codigo"] == "0702030643" and row["qtd_maxima_item"] == 2 for row in items)
+        assert all(row["codigo"].startswith("07") and row["origem_relacao"] == "SIGTAP 2026-06" for row in items)
         assert search_items(session, "parafuso bloqueado", "0408040122", "S720") == []
         with pytest.raises(ValueError, match="não está relacionado"):
             search_items(session, "", "0408040122", "Z999")

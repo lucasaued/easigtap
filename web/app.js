@@ -16,9 +16,9 @@ function updateTabs() {
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
   $('results-title').textContent = state.mode === 'cid' ? 'CIDs encontrados' : 'Procedimentos';
-  $('query').placeholder = state.mode === 'cid' ? 'Digite um código CID, ex.: S72' : 'Busque por palavra ou código, ex.: fêmur';
+  $('query').placeholder = state.mode === 'cid' ? 'Busque CID por código ou nome, ex.: S72 ou fêmur' : 'Busque por palavra ou código, ex.: fêmur';
   $('search-hint').textContent = state.mode === 'cid'
-    ? 'A planilha contém códigos CID, sem nomes de diagnósticos. Digite um código para ver os procedimentos relacionados.'
+    ? 'Os vínculos com procedimentos vêm da planilha. Os nomes dos diagnósticos vêm da CID-10 V2008 do DATASUS.'
     : 'O grupo 0408 é um recorte inicial da planilha. A seleção final de Traumatologia e Ortopedia pode ser ajustada com a equipe clínica.';
 }
 
@@ -27,7 +27,7 @@ async function loadResults() {
   if (state.mode === 'cid' && !state.query) {
     state.results = [];
     $('result-count').textContent = '0';
-    $('results').innerHTML = '<div class="empty">Digite um código CID para começar.</div>';
+    $('results').innerHTML = '<div class="empty">Digite um código ou nome de diagnóstico para começar.</div>';
     return;
   }
   $('results').innerHTML = '<div class="empty">Buscando na planilha…</div>';
@@ -38,7 +38,7 @@ async function loadResults() {
     state.results = rows;
     $('result-count').textContent = rows.length === 60 ? '60+' : String(rows.length);
     $('results').innerHTML = rows.length ? rows.map((row) => state.mode === 'cid'
-      ? `<button class="result" data-cid="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">CID ${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">Ver procedimentos relacionados</span><span class="result-meta">${row.procedimentos} procedimento(s) no recorte</span></button>`
+      ? `<button class="result" data-cid="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">CID ${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">${escapeHtml(row.descricao || 'Descrição indisponível na fonte CID-10 V2008')}</span><span class="result-meta">${row.procedimentos} procedimento(s) no recorte</span></button>`
       : `<button class="result ${state.detail?.codigo === row.codigo ? 'active' : ''}" data-procedure="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">${escapeHtml(row.nome)}</span></button>`).join('')
       : '<div class="empty">Nenhum resultado neste recorte. Tente outra palavra ou selecione “Todos os procedimentos”.</div>';
   } catch (error) { $('results').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; }
@@ -76,15 +76,15 @@ function renderDetail() {
   const statusLabel = row.status_dados === 'importado_com_pendencias' ? 'importado com pendências' : row.status_dados.replaceAll('_', ' ');
   $('detail-placeholder').hidden = true;
   $('detail').hidden = false;
-  const cids = row.cids.map((cid) => `<button class="cid-chip ${state.selectedCid === cid.codigo ? 'selected' : ''}" data-select-cid="${escapeHtml(cid.codigo)}" title="Grafia na planilha: ${escapeHtml(cid.grafia_original)}">${escapeHtml(cid.codigo)}<small>${cid.tipo === 'principal' ? 'Principal' : 'Secundário'}</small></button>`).join('');
+  const cids = row.cids.map((cid) => `<button class="cid-chip ${state.selectedCid === cid.codigo ? 'selected' : ''}" data-select-cid="${escapeHtml(cid.codigo)}" title="${escapeHtml(cid.descricao || 'Descrição indisponível na fonte CID-10 V2008')}">${escapeHtml(cid.codigo)}<small>${cid.tipo === 'principal' ? 'Principal' : 'Secundário'}</small></button>`).join('');
   const chosenCid = row.cids.find((cid) => cid.codigo === state.selectedCid);
-  const cidDescription = chosenCid ? `<div class="cid-description"><strong>CID ${escapeHtml(chosenCid.codigo)}</strong><span>${chosenCid.descricao ? escapeHtml(chosenCid.descricao) : 'A planilha não informa o nome deste diagnóstico. Os resultados abaixo descrevem procedimentos associados ao código, não o significado clínico do CID.'}</span>${chosenCid.fonte_descricao ? `<small>Fonte: ${escapeHtml(chosenCid.fonte_descricao)}</small>` : ''}<div id="cid-related" class="cid-related">Carregando procedimentos relacionados…</div></div>` : '';
+  const cidDescription = chosenCid ? `<div class="cid-description"><strong>CID ${escapeHtml(chosenCid.codigo)}</strong><span>${chosenCid.descricao ? escapeHtml(chosenCid.descricao) : 'Descrição indisponível na fonte CID-10 V2008 do DATASUS. Confira o código na fonte oficial.'}</span>${chosenCid.fonte_descricao ? '<small>Descrição: DATASUS CID-10 V2008 · Relação com procedimento: planilha local</small>' : ''}<div id="cid-related" class="cid-related">Carregando procedimentos relacionados…</div></div>` : '';
   $('detail').innerHTML = `
     <div class="detail-top"><span class="pill">PROCEDIMENTO ${escapeHtml(row.codigo)}</span><button class="link-button" data-copy-code="${escapeHtml(row.codigo)}">Copiar código</button></div>
     <h2 class="detail-title">${escapeHtml(row.nome)}</h2>
     <p class="muted">${escapeHtml(row.descricao || 'A planilha não traz descrição para este procedimento.')}</p>
     <div class="detail-section"><h3>CIDs relacionados <span class="count">${row.cids.length}</span></h3><p class="section-intro">Selecione um CID para incluir no resumo. A relação e o tipo vêm da planilha.</p><div class="cid-list">${cids || '<span class="muted">Nenhum CID informado.</span>'}</div>${cidDescription}</div>
-    <div class="detail-section"><h3>Itens OPM com CID em comum</h3><p class="section-intro">${state.selectedCid ? `Sugestões do grupo 07 que também citam o CID ${escapeHtml(state.selectedCid)}. A coincidência de CID não comprova compatibilidade ou autorização para esta cirurgia.` : 'Selecione um CID acima para ver sugestões do grupo 07. A ausência de um item nesta lista não comprova que ele seja proibido.'}</p><form id="item-form" class="item-search"><input id="item-query" type="search" placeholder="Filtrar sugestões por nome ou código" aria-label="Buscar OPM" ${state.selectedCid ? '' : 'disabled'}><button type="submit" ${state.selectedCid ? '' : 'disabled'}>Filtrar</button></form><div id="item-results" class="item-results" ${state.selectedCid ? '' : 'hidden'}>${state.selectedCid ? '<div class="empty">Carregando sugestões…</div>' : ''}</div><div id="chosen-items"></div></div>
+    <div class="detail-section"><h3>OPM compatíveis com o procedimento</h3><p class="section-intro">${state.selectedCid ? `Relações oficiais do SIGTAP 06/2026 para este procedimento. O CID ${escapeHtml(state.selectedCid)} foi selecionado para o resumo, mas não altera a lista de compatibilidades. Confira registro, condições e adequação clínica antes do uso.` : 'Selecione um CID acima para consultar as OPM vinculadas oficialmente ao procedimento. A ausência nesta lista, isoladamente, não comprova proibição.'}</p><form id="item-form" class="item-search"><input id="item-query" type="search" placeholder="Filtrar OPM por nome ou código" aria-label="Buscar OPM" ${state.selectedCid ? '' : 'disabled'}><button type="submit" ${state.selectedCid ? '' : 'disabled'}>Filtrar</button></form><div id="item-results" class="item-results" ${state.selectedCid ? '' : 'hidden'}>${state.selectedCid ? '<div class="empty">Carregando OPM…</div>' : ''}</div><div id="chosen-items"></div></div>
     <div class="detail-section"><h3>Resumo para copiar</h3><p class="section-intro">Competência informada: ${escapeHtml(row.competencia)} · Status: ${escapeHtml(statusLabel)}</p><div id="summary" class="summary"></div><button id="copy-summary" class="primary-button">Copiar resumo</button><span id="copy-feedback" class="feedback"></span></div>`;
   renderChosenItems();
   renderSummary();
@@ -94,13 +94,13 @@ function renderItems() {
   const box = $('item-results');
   if (!box) return;
   box.hidden = false;
-  box.innerHTML = state.items.length ? state.items.map((item) => `<div class="item-result"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nome)}</strong><span>${item.qtd_maxima_item ? `Qtd. máxima do item: ${item.qtd_maxima_item}` : 'Sem quantidade máxima informada no item'}</span></div><button type="button" data-add-item="${escapeHtml(item.codigo)}" ${item.qtd_maxima_item ? '' : 'disabled'}>Adicionar</button></div>`).join('') : '<div class="empty">Nenhum item com este CID e termo de busca foi encontrado na planilha. Isso não comprova proibição ou incompatibilidade.</div>';
+  box.innerHTML = state.items.length ? state.items.map((item) => `<div class="item-result"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nome)}</strong><span>${item.qtd_maxima_item ? `Qtd. permitida na relação SIGTAP: ${item.qtd_maxima_item}` : 'Sem quantidade informada na relação'}</span></div><button type="button" data-add-item="${escapeHtml(item.codigo)}" ${item.qtd_maxima_item ? '' : 'disabled'}>Adicionar</button></div>`).join('') : '<div class="empty">Nenhuma OPM compatível foi encontrada para este procedimento e termo de busca no SIGTAP 06/2026. Confira os demais critérios e a fonte oficial antes de concluir que o item não é permitido.</div>';
 }
 
 function renderChosenItems() {
   const box = $('chosen-items');
   if (!box) return;
-  box.innerHTML = state.chosenItems.length ? `<p class="section-intro">Itens selecionados a partir de CIDs em comum · compatibilidade com o procedimento não verificada</p>${state.chosenItems.map((item) => `<div class="selection"><div class="selection-name"><strong>${escapeHtml(item.codigo)}</strong>${escapeHtml(item.nome)}<br><span class="muted">Máximo do item: ${item.qtd_maxima_item}</span></div><div class="selection-actions"><label>Quantidade <span class="quantity-control"><button type="button" aria-label="Diminuir ${escapeHtml(item.codigo)}" data-decrease-item="${escapeHtml(item.codigo)}" ${item.quantidade <= 1 ? 'disabled' : ''}>−</button><input type="number" min="1" max="${item.qtd_maxima_item}" value="${item.quantidade}" data-item-quantity="${escapeHtml(item.codigo)}"><button type="button" aria-label="Aumentar ${escapeHtml(item.codigo)}" data-increase-item="${escapeHtml(item.codigo)}" ${item.quantidade >= item.qtd_maxima_item ? 'disabled' : ''}>+</button></span></label><button class="remove-item" type="button" data-remove-item="${escapeHtml(item.codigo)}">Remover</button></div></div>`).join('')}` : '';
+  box.innerHTML = state.chosenItems.length ? `<p class="section-intro">Itens com relação de compatibilidade no SIGTAP 06/2026</p>${state.chosenItems.map((item) => `<div class="selection"><div class="selection-name"><strong>${escapeHtml(item.codigo)}</strong>${escapeHtml(item.nome)}<br><span class="muted">Quantidade permitida na relação: ${item.qtd_maxima_item}</span></div><div class="selection-actions"><label>Quantidade <span class="quantity-control"><button type="button" aria-label="Diminuir ${escapeHtml(item.codigo)}" data-decrease-item="${escapeHtml(item.codigo)}" ${item.quantidade <= 1 ? 'disabled' : ''}>−</button><input type="number" min="1" max="${item.qtd_maxima_item}" value="${item.quantidade}" data-item-quantity="${escapeHtml(item.codigo)}"><button type="button" aria-label="Aumentar ${escapeHtml(item.codigo)}" data-increase-item="${escapeHtml(item.codigo)}" ${item.quantidade >= item.qtd_maxima_item ? 'disabled' : ''}>+</button></span></label><button class="remove-item" type="button" data-remove-item="${escapeHtml(item.codigo)}">Remover</button></div></div>`).join('')}` : '';
 }
 
 function summaryText() {
@@ -108,10 +108,10 @@ function summaryText() {
   if (!row) return '';
   const lines = [`eaSIGTAP — consulta à planilha SIGTAP`, `Competência informada: ${row.competencia}`, `Procedimento: ${row.codigo} — ${row.nome}`, `CID selecionado: ${state.selectedCid || 'não selecionado'}`];
   if (state.chosenItems.length) {
-    lines.push('Itens OPM sugeridos por CID em comum e selecionados manualmente (compatibilidade com o procedimento não verificada):');
+    lines.push('Itens OPM com relação de compatibilidade SIGTAP 06/2026, selecionados manualmente:');
     state.chosenItems.forEach((item) => lines.push(`- ${item.codigo} — ${item.nome} | quantidade ${item.quantidade} | máximo informado para o item ${item.qtd_maxima_item}`));
   } else lines.push('Itens OPM: nenhum selecionado');
-  lines.push('Fonte: planilha Sigtap - UGPIA.xlsx; confirmar adequação clínica antes do uso.');
+  lines.push('Fontes: planilha Sigtap - UGPIA.xlsx e SIGTAP oficial 06/2026; confirmar condições de registro e adequação clínica antes do uso.');
   return lines.join('\n');
 }
 
@@ -164,7 +164,7 @@ async function loadSuggestedItems(query) {
   if (!state.detail || !state.selectedCid) return;
   const procedure = state.detail.codigo;
   const cid = state.selectedCid;
-  if ($('item-results')) { $('item-results').hidden = false; $('item-results').innerHTML = '<div class="empty">Buscando itens com CID em comum…</div>'; }
+  if ($('item-results')) { $('item-results').hidden = false; $('item-results').innerHTML = '<div class="empty">Buscando OPM compatíveis no SIGTAP…</div>'; }
   try {
     const rows = await api(`/api/itens?q=${encodeURIComponent(query)}&procedimento=${encodeURIComponent(procedure)}&cid=${encodeURIComponent(cid)}`);
     if (state.detail?.codigo !== procedure || state.selectedCid !== cid) return;

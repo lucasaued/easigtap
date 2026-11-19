@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, func, or_, select
 from sqlalchemy.orm import Session
 
 from src.config import database_url
-from src.database.models import Cid, Competencia, Procedimento, ProcedimentoCid
+from src.database.models import Cid, Competencia, Opm, Procedimento, ProcedimentoCid, ProcedimentoOpm
 from src.parsers.cids import canonical_cid
 
 
@@ -29,17 +29,6 @@ def procedure_json(row: Procedimento) -> dict:
             "linha": row.linha_origem}
 
 
-def item_limit(row: Procedimento) -> int | None:
-    for key, value in row.atributos.items():
-        if key.casefold().startswith("qtd m") and value is not None:
-            try:
-                number = int(value)
-                return number if number > 0 else None
-            except (TypeError, ValueError):
-                return None
-    return None
-
-
 def search_procedures(session: Session, query: str, scope: str, limit: int = 60) -> list[dict]:
     comp = active_competencia(session)
     stmt = select(Procedimento).where(Procedimento.competencia_id == comp.id,
@@ -57,17 +46,20 @@ def search_procedures(session: Session, query: str, scope: str, limit: int = 60)
 def search_cids(session: Session, query: str, scope: str, limit: int = 60) -> list[dict]:
     comp = active_competencia(session)
     normalized = canonical_cid(query.strip())
-    if not normalized:
+    if not query.strip():
         return []
-    stmt = (select(Cid.codigo, func.count(func.distinct(Procedimento.id)))
+    stmt = (select(Cid.codigo, Cid.descricao, func.count(func.distinct(Procedimento.id)))
             .join(ProcedimentoCid, ProcedimentoCid.cid_id == Cid.id)
             .join(Procedimento, Procedimento.id == ProcedimentoCid.procedimento_id)
-            .where(Procedimento.competencia_id == comp.id, Cid.codigo.startswith(normalized),
+            .where(Procedimento.competencia_id == comp.id,
+                   or_(Cid.codigo.startswith(normalized),
+                       func.sigtap_search(Cid.descricao).contains(func.sigtap_search(query.strip()))),
                    ~Procedimento.codigo.startswith("07")))
     if scope == "ortopedia":
         stmt = stmt.where(Procedimento.codigo.startswith("0408"))
-    return [{"codigo": code, "procedimentos": count} for code, count in session.execute(
-        stmt.group_by(Cid.codigo).order_by(Cid.codigo).limit(limit))]
+    return [{"codigo": code, "descricao": description, "procedimentos": count}
+            for code, description, count in session.execute(
+                stmt.group_by(Cid.codigo, Cid.descricao).order_by(Cid.codigo).limit(limit))]
 
 
 def search_items(session: Session, query: str, procedure_code: str, cid_code: str,
@@ -84,18 +76,20 @@ def search_items(session: Session, query: str, procedure_code: str, cid_code: st
                                      Cid.codigo == normalized_cid).limit(1))
     if relation is None:
         raise ValueError("O CID selecionado não está relacionado ao procedimento")
-    shares_cid = (select(1).select_from(ProcedimentoCid)
-                  .join(Cid, Cid.id == ProcedimentoCid.cid_id)
-                  .where(ProcedimentoCid.procedimento_id == Procedimento.id,
-                         Cid.codigo == normalized_cid).exists())
-    stmt = select(Procedimento).where(Procedimento.competencia_id == comp.id,
-                                     Procedimento.codigo.startswith("07"), shares_cid)
+    stmt = (select(Opm, ProcedimentoOpm.limite_quantidade)
+            .join(ProcedimentoOpm, ProcedimentoOpm.opm_id == Opm.id)
+            .join(Procedimento, Procedimento.id == ProcedimentoOpm.procedimento_id)
+            .where(Procedimento.competencia_id == comp.id,
+                   Procedimento.codigo == procedure_code,
+                   ProcedimentoOpm.competencia_id == comp.id,
+                   ProcedimentoOpm.tipo == "compativel"))
     if query:
         normalized = query.strip().lower()
-        stmt = stmt.where(or_(Procedimento.codigo.contains(normalized.replace(".", "")),
-                              func.sigtap_search(Procedimento.nome).contains(func.sigtap_search(normalized))))
-    return [{**procedure_json(row), "qtd_maxima_item": item_limit(row)} for row in
-            session.scalars(stmt.order_by(Procedimento.codigo).limit(limit))]
+        stmt = stmt.where(or_(Opm.codigo.contains(normalized.replace(".", "")),
+                              func.sigtap_search(Opm.nome).contains(func.sigtap_search(normalized))))
+    return [{"codigo": opm.codigo, "nome": opm.nome, "descricao": opm.descricao,
+             "qtd_maxima_item": amount, "origem_relacao": "SIGTAP 2026-06"}
+            for opm, amount in session.execute(stmt.order_by(Opm.codigo).limit(limit))]
 
 
 def procedure_detail(session: Session, code: str) -> dict | None:
