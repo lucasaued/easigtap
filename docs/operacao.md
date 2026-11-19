@@ -20,9 +20,22 @@ O `docker-compose.yml` prepara um PostgreSQL local. Antes de importar, confirme 
 ```powershell
 docker compose up -d db
 Copy-Item .env.example .env
-.\.venv\Scripts\alembic upgrade head
+.\.venv\Scripts\python -m alembic upgrade head
 .\.venv\Scripts\python -m src.cli import-sigtap --file 'data/raw/Sigtap - UGPIA.xlsx' --competencia 2026-06 --origem 'Planilha fornecida ao projeto; competência informada pelo responsável'
 ```
+
+Se a porta 5432 já estiver ocupada, use uma instância de teste isolada e uma URL temporária na sessão do PowerShell:
+
+```powershell
+docker run -d --rm --name easigtap-validation-pg -e POSTGRES_DB=sigtap -e POSTGRES_USER=sigtap -e POSTGRES_PASSWORD=sigtap -p 127.0.0.1:55432:5432 postgres:16-alpine
+$env:DATABASE_URL='postgresql+psycopg://sigtap:sigtap@127.0.0.1:55432/sigtap'
+.\.venv\Scripts\python -m alembic upgrade head
+.\.venv\Scripts\python -m src.cli import-sigtap --file 'data/raw/Sigtap - UGPIA.xlsx' --competencia 2026-06 --origem 'Planilha fornecida ao projeto; competência informada pelo responsável'
+$env:EASIGTAP_TEST_DATABASE_URL=$env:DATABASE_URL
+.\.venv\Scripts\python -m pytest -q -m postgres -p no:cacheprovider
+```
+
+Use esse teste apenas com um banco descartável criado para a validação. O container iniciado com `--rm` é removido ao ser parado, juntamente com seus dados não persistidos.
 
 A importação da mesma combinação de competência e SHA-256 é idempotente. Outra planilha para a mesma competência é recusada. O status `validado_tecnicamente` significa apenas que a inspeção não encontrou erros; `importado_com_pendencias` indica erros de entrada não fatais. Nenhum desses estados significa conferência com o SIGTAP oficial. A migração `0002` converte os antigos estados `validado` e `parcial`, normaliza as chaves CID e guarda a grafia original das relações existentes. Faça backup do banco antes de aplicar migrações em dados que precisem ser preservados.
 
