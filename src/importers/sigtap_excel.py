@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 import re
+from zipfile import BadZipFile
 from openpyxl import load_workbook
-from src.parsers.cids import parse_cids
+from src.parsers.cids import parse_cids_with_origins
 from src.parsers.procedimentos import clean_text, parse_procedimento
 
 REQUIRED = {"Procedimento", "Descrição", "CID", "CID Secundário", "Qtd Máxima"}
@@ -27,6 +28,7 @@ class Record:
     original: str
     attributes: dict
     cids: dict[str, list[str]]
+    cid_origins: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -57,7 +59,10 @@ class Inspection:
 
 def inspect_workbook(path: Path, sheet: str | None = None) -> Inspection:
     digest = sha256(path.read_bytes()).hexdigest()
-    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+    except BadZipFile as exc:
+        raise ValueError("Arquivo XLSX inválido") from exc
     try:
         sheets = workbook.sheetnames
         if sheet is None:
@@ -67,8 +72,13 @@ def inspect_workbook(path: Path, sheet: str | None = None) -> Inspection:
         if sheet not in sheets:
             raise ValueError(f"Aba inexistente: {sheet}")
         rows = workbook[sheet].iter_rows(values_only=True)
-        headers = [clean_text(v) for v in next(rows)]
+        try:
+            headers = [clean_text(v) for v in next(rows)]
+        except StopIteration as exc:
+            raise ValueError("Aba sem cabeçalho") from exc
         canonical = {canonical_header(v): i for i, v in enumerate(headers)}
+        if len(canonical) != len(headers):
+            raise ValueError("Cabeçalhos duplicados após normalização")
         missing = [v for v in REQUIRED if canonical_header(v) not in canonical]
         if missing:
             raise ValueError(f"Colunas essenciais ausentes: {', '.join(sorted(missing))}")
@@ -97,16 +107,20 @@ def inspect_workbook(path: Path, sheet: str | None = None) -> Inspection:
                 continue
             seen[code] = line
             cids = {}
+            cid_origins = {}
             for key, kind in (("CID", "principal"), ("CID Secundário", "secundario")):
-                codes, errors = parse_cids(get(key))
-                cids[kind] = codes
+                origins, errors = parse_cids_with_origins(get(key))
+                cids[kind] = list(origins)
+                cid_origins[kind] = origins
                 result.errors.extend({"line": line, "field": key, "message": error} for error in errors)
             if any("�" in str(v) for v in data.values() if v is not None):
                 result.warnings.append({"line": line, "message": "Texto contém caractere de substituição U+FFFD; origem preservada"})
             description = get("Descrição")
             result.records.append(Record(line, code, name, str(description) if description is not None else None,
                                          original, {k: str(v) if v is not None else None for k, v in data.items()
-                                                    if canonical_header(k) not in {canonical_header("Procedimento"), canonical_header("Descrição"), canonical_header("CID"), canonical_header("CID Secundário")}}, cids))
+                                                    if canonical_header(k) not in {canonical_header("Procedimento"), canonical_header("Descrição"), canonical_header("CID"), canonical_header("CID Secundário")}}, cids, cid_origins))
+        if not result.records:
+            raise ValueError("Nenhum procedimento válido encontrado")
         return result
     finally:
         workbook.close()

@@ -1,6 +1,6 @@
 # Relatório de qualidade da planilha fornecida
 
-Arquivo: `data/raw/Sigtap - UGPIA.xlsx`. Aba: `sigtap_17_06_2026`. Inspeção local realizada com `python -m src.cli inspect-sigtap`; o relatório detalhado por linha pode ser regenerado em `data/processed/inspection.json`.
+Arquivo: `data/raw/Sigtap - UGPIA.xlsx`. Aba: `sigtap_17_06_2026`. Inspeção local repetida com o ambiente isolado e `python -m src.cli inspect-sigtap`; o relatório detalhado por linha pode ser regenerado em `data/processed/inspection.json`. SHA-256 do arquivo: `b35c88d5dd88b749157c6a4ec34f2ece2dd96267785f9840f5b803d5e38d39b4`.
 
 | Métrica | Resultado |
 |---|---:|
@@ -15,4 +15,6 @@ Arquivo: `data/raw/Sigtap - UGPIA.xlsx`. Aba: `sigtap_17_06_2026`. Inspeção lo
 
 Os 31 problemas são 27 itens vazios em listas e quatro códigos incompletos (`M`, `K5`, `L0`, `I2`). Os itens inválidos são omitidos da relação; os procedimentos são mantidos. Não foram encontrados códigos de procedimento ausentes, malformados ou duplicados. A coluna CID está vazia em 2.088 linhas; a CID Secundário está vazia em 4.952 linhas.
 
-O arquivo tem duas linhas de dados a menos que as 4.986 descritas no pedido. A competência oficial não é comprovada pelo nome da aba. A planilha não contém a relação explícita procedimento–OPM, descrições oficiais completas de CID ou mapeamento validado de Traumatologia e Ortopedia.
+O arquivo tem duas linhas de dados a menos que as 4.986 descritas para outra versão da planilha em conversa anterior. O responsável pelo projeto confirmou **junho de 2026** como competência desta planilha em 19/11/2026. O pacote oficial SIGTAP da mesma competência foi importado como complemento; todos os 7.895 códigos CID e os 1.529 pares `0408`–OPM selecionados nele encontraram correspondência na planilha. Isso não confirma equivalência integral de todos os atributos das duas fontes. A planilha não contém a relação explícita procedimento–OPM, descrições oficiais completas de CID ou mapeamento validado de Traumatologia e Ortopedia.
+
+Os códigos CID são armazenados em uma chave de busca sem ponto e em maiúsculas, mantendo a grafia da planilha em `procedimento_cid.codigo_original`. O pacote oficial de junho de 2026 confirmou a existência de todos os 7.895 códigos e forneceu suas descrições. Após a carga, o status da planilha continua `importado_com_pendencias` devido aos 31 problemas acima; a importação complementar não apaga essas pendências.

@@ -18,7 +18,20 @@ def main():
             cmd.add_argument("--origem", default="Planilha fornecida ao projeto")
     specialty = sub.add_parser("import-specialties")
     specialty.add_argument("--file", type=Path, required=True)
+    official = sub.add_parser("import-official-sigtap")
+    official.add_argument("--file", type=Path, required=True,
+                          help="ZIP oficial SIGTAP da competência 2026-06")
     args = parser.parse_args()
+    if args.command == "import-official-sigtap":
+        from src.database.session import make_session_factory
+        from src.importers.official_sigtap import import_official
+        try:
+            with make_session_factory().begin() as session:
+                report = import_official(session, args.file)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        except (OSError, ValueError, RuntimeError) as exc:
+            parser.exit(1, f"Erro: {exc}\n")
+        return
     if args.command == "import-specialties":
         from src.database.session import make_session_factory
         from src.importers.specialties import import_specialties

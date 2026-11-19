@@ -13,8 +13,11 @@ def persist(session: Session, inspection: Inspection, referencia: str, origem: s
     if session.scalar(select(Competencia.id).where(Competencia.referencia == referencia)) is not None:
         raise ValueError("Competência já importada com outro arquivo; nenhuma alteração realizada")
     competencia = Competencia(referencia=referencia, arquivo=inspection.path,
-                              sha256=inspection.sha256, status="parcial" if inspection.errors else "validado",
-                              origem={"descricao": origem, "aba": inspection.sheet})
+                              sha256=inspection.sha256,
+                              status="importado_com_pendencias" if inspection.errors else "validado_tecnicamente",
+                              origem={"descricao": origem, "aba": inspection.sheet,
+                                      "competencia_informada_pelo_operador": referencia,
+                                      "validacao_oficial": False})
     session.add(competencia)
     session.flush()
     codes = {code for rec in inspection.records for values in rec.cids.values() for code in values}
@@ -34,7 +37,8 @@ def persist(session: Session, inspection: Inspection, referencia: str, origem: s
         for kind, values in rec.cids.items():
             for code in values:
                 session.add(ProcedimentoCid(procedimento_id=procedure.id, cid_id=cids[code].id,
-                                           tipo=kind, competencia_id=competencia.id))
+                                           tipo=kind, competencia_id=competencia.id,
+                                           codigo_original=rec.cid_origins.get(kind, {}).get(code, code)))
                 link_count += 1
     return {"status": competencia.status, "competencia_id": competencia.id,
             "procedures": len(inspection.records), "cid_links": link_count}

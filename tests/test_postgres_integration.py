@@ -1,0 +1,48 @@
+"""Read-only checks for the supplied workbook loaded into an isolated PostgreSQL database."""
+import os
+
+import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+
+from src.web import procedure_detail, procedures_for_cid, search_cids, search_items, search_procedures
+
+
+@pytest.mark.postgres
+def test_imported_workbook_in_postgres():
+    url = os.getenv("EASIGTAP_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Defina EASIGTAP_TEST_DATABASE_URL para o banco de teste")
+    if not url.startswith("postgresql+"):
+        pytest.fail("O teste exige uma URL SQLAlchemy de PostgreSQL")
+    engine = create_engine(url)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002_cid_normalization_status"
+        assert set(connection.execute(text("SELECT extname FROM pg_extension WHERE extname IN ('unaccent', 'pg_trgm')")).scalars()) == {"unaccent", "pg_trgm"}
+        indexes = set(connection.execute(text("SELECT indexname FROM pg_indexes WHERE schemaname='public'")).scalars())
+        assert {"ix_procedimentos_nome_search", "ix_cids_descricao_search"} <= indexes
+        assert connection.execute(text("SELECT count(*) FROM procedimentos")).scalar_one() == 4984
+        assert connection.execute(text("SELECT count(*) FROM cids")).scalar_one() == 7895
+        assert connection.execute(text("SELECT count(*) FROM cids WHERE descricao IS NOT NULL")).scalar_one() == 7895
+        assert connection.execute(text("SELECT count(*) FROM opms")).scalar_one() == 153
+        assert connection.execute(text("SELECT count(*) FROM procedimento_opm")).scalar_one() == 1529
+        assert dict(connection.execute(text("SELECT tipo, count(*) FROM procedimento_cid GROUP BY tipo")).all()) == {"principal": 71238, "secundario": 362}
+        assert connection.execute(text("SELECT count(*) FROM procedimento_cid WHERE codigo_original IS NULL")).scalar_one() == 0
+        assert connection.execute(text("SELECT count(*) FROM procedimento_cid pc LEFT JOIN procedimentos p ON p.id=pc.procedimento_id LEFT JOIN cids c ON c.id=pc.cid_id WHERE p.id IS NULL OR c.id IS NULL")).scalar_one() == 0
+        assert connection.execute(text("SELECT count(*) FROM procedimentos WHERE sigtap_search(nome) LIKE '%femur%' ")).scalar_one() > 0
+        assert connection.execute(text("SELECT status FROM competencias WHERE referencia='2026-06'")).scalar_one() == "importado_com_pendencias"
+    with Session(engine) as session:
+        procedures = search_procedures(session, "femur", "ortopedia")
+        assert any(row["codigo"] == "0408040122" for row in procedures)
+        detail = procedure_detail(session, "0408040122")
+        assert any(cid["codigo"] == "S720" and cid["descricao"] and "Fratura" in cid["descricao"] for cid in detail["cids"])
+        assert any(row["codigo"] == "S720" for row in search_cids(session, "S72.0", "ortopedia"))
+        assert any(row["codigo"] == "S720" for row in search_cids(session, "fratura do colo do femur", "ortopedia"))
+        assert any(row["codigo"] == "0408040122" for row in procedures_for_cid(session, "S720", "ortopedia"))
+        items = search_items(session, "", "0408040122", "S720")
+        assert items
+        assert any(row["codigo"] == "0702030643" and row["qtd_maxima_item"] == 2 for row in items)
+        assert all(row["codigo"].startswith("07") and row["origem_relacao"] == "SIGTAP 2026-06" for row in items)
+        assert search_items(session, "parafuso bloqueado", "0408040122", "S720") == []
+        with pytest.raises(ValueError, match="não está relacionado"):
+            search_items(session, "", "0408040122", "Z999")
