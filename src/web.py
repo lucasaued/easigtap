@@ -70,10 +70,26 @@ def search_cids(session: Session, query: str, scope: str, limit: int = 60) -> li
         stmt.group_by(Cid.codigo).order_by(Cid.codigo).limit(limit))]
 
 
-def search_items(session: Session, query: str, limit: int = 60) -> list[dict]:
+def search_items(session: Session, query: str, procedure_code: str, cid_code: str,
+                 limit: int = 60) -> list[dict]:
     comp = active_competencia(session)
+    normalized_cid = canonical_cid(cid_code)
+    if not procedure_code or not normalized_cid:
+        raise ValueError("Selecione um procedimento e um CID antes de buscar itens OPM")
+    relation = session.scalar(select(ProcedimentoCid.procedimento_id)
+                              .join(Procedimento, Procedimento.id == ProcedimentoCid.procedimento_id)
+                              .join(Cid, Cid.id == ProcedimentoCid.cid_id)
+                              .where(Procedimento.competencia_id == comp.id,
+                                     Procedimento.codigo == procedure_code,
+                                     Cid.codigo == normalized_cid).limit(1))
+    if relation is None:
+        raise ValueError("O CID selecionado não está relacionado ao procedimento")
+    shares_cid = (select(1).select_from(ProcedimentoCid)
+                  .join(Cid, Cid.id == ProcedimentoCid.cid_id)
+                  .where(ProcedimentoCid.procedimento_id == Procedimento.id,
+                         Cid.codigo == normalized_cid).exists())
     stmt = select(Procedimento).where(Procedimento.competencia_id == comp.id,
-                                     Procedimento.codigo.startswith("07"))
+                                     Procedimento.codigo.startswith("07"), shares_cid)
     if query:
         normalized = query.strip().lower()
         stmt = stmt.where(or_(Procedimento.codigo.contains(normalized.replace(".", "")),
@@ -89,12 +105,15 @@ def procedure_detail(session: Session, code: str) -> dict | None:
                                                   ~Procedimento.codigo.startswith("07")))
     if row is None:
         return None
-    cids = session.execute(select(Cid.codigo, ProcedimentoCid.tipo, ProcedimentoCid.codigo_original)
+    cids = session.execute(select(Cid.codigo, Cid.descricao, Cid.fonte_descricao,
+                                  ProcedimentoCid.tipo, ProcedimentoCid.codigo_original)
                            .join(ProcedimentoCid, ProcedimentoCid.cid_id == Cid.id)
                            .where(ProcedimentoCid.procedimento_id == row.id)
                            .order_by(ProcedimentoCid.tipo, Cid.codigo)).all()
-    return {**procedure_json(row), "cids": [{"codigo": code, "tipo": kind,
-                                               "grafia_original": original} for code, kind, original in cids],
+    return {**procedure_json(row), "cids": [{"codigo": code, "descricao": description,
+                                               "fonte_descricao": source, "tipo": kind,
+                                               "grafia_original": original}
+                                              for code, description, source, kind, original in cids],
             "competencia": comp.referencia, "status_dados": comp.status,
             "origem": comp.origem.get("descricao"), "atributos": row.atributos}
 
@@ -140,7 +159,8 @@ class Handler(BaseHTTPRequestHandler):
                     elif path == "/api/cids":
                         result = search_cids(session, query, scope)
                     elif path == "/api/itens":
-                        result = search_items(session, query)
+                        result = search_items(session, query, params.get("procedimento", ""),
+                                              params.get("cid", ""))
                     elif path.startswith("/api/procedimentos/"):
                         result = procedure_detail(session, path.rsplit("/", 1)[-1])
                         if result is None:

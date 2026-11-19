@@ -35,5 +35,9 @@ def test_imported_workbook_in_postgres():
         assert any(cid["codigo"] == "S720" for cid in detail["cids"])
         assert any(row["codigo"] == "S720" for row in search_cids(session, "S72.0", "ortopedia"))
         assert any(row["codigo"] == "0408040122" for row in procedures_for_cid(session, "S720", "ortopedia"))
-        assert any(row["codigo"] == "0702031321" and row["qtd_maxima_item"] == 10
-                   for row in search_items(session, "parafuso bloqueado"))
+        suggestions = search_items(session, "", "0408040122", "S720")
+        assert suggestions
+        assert all(row["codigo"].startswith("07") for row in suggestions)
+        assert search_items(session, "parafuso bloqueado", "0408040122", "S720") == []
+        with pytest.raises(ValueError, match="não está relacionado"):
+            search_items(session, "", "0408040122", "Z999")
