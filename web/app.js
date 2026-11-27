@@ -15,11 +15,11 @@ function updateTabs() {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  $('results-title').textContent = state.mode === 'cid' ? 'CIDs encontrados' : 'Procedimentos';
-  $('query').placeholder = state.mode === 'cid' ? 'Busque CID por código ou nome, ex.: S72 ou fêmur' : 'Busque por palavra ou código, ex.: fêmur';
+  $('results-title').textContent = state.mode === 'cid' ? 'CIDs' : 'Procedimentos';
+  $('query').placeholder = state.mode === 'cid' ? 'Código ou nome do CID' : 'Nome ou código do procedimento';
   $('search-hint').textContent = state.mode === 'cid'
-    ? 'Os vínculos com procedimentos vêm da planilha. Os nomes dos diagnósticos vêm da CID-10 V2008 do DATASUS.'
-    : 'O grupo 0408 é um recorte inicial da planilha. A seleção final de Traumatologia e Ortopedia pode ser ajustada com a equipe clínica.';
+    ? 'Vínculos com procedimentos: planilha local. Descrições: SIGTAP 06/2026.'
+    : 'O grupo 0408 é um recorte inicial; a seleção clínica ainda está em revisão.';
 }
 
 async function loadResults() {
@@ -30,7 +30,7 @@ async function loadResults() {
     $('results').innerHTML = '<div class="empty">Digite um código ou nome de diagnóstico para começar.</div>';
     return;
   }
-  $('results').innerHTML = '<div class="empty">Buscando na planilha…</div>';
+  $('results').innerHTML = '<div class="empty">Buscando procedimentos…</div>';
   try {
     const path = state.mode === 'cid' ? '/api/cids' : '/api/procedimentos';
     const rows = await api(path + params(state.query));
@@ -38,7 +38,7 @@ async function loadResults() {
     state.results = rows;
     $('result-count').textContent = rows.length === 60 ? '60+' : String(rows.length);
     $('results').innerHTML = rows.length ? rows.map((row) => state.mode === 'cid'
-      ? `<button class="result" data-cid="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">CID ${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">${escapeHtml(row.descricao || 'Descrição indisponível na fonte CID-10 V2008')}</span><span class="result-meta">${row.procedimentos} procedimento(s) no recorte</span></button>`
+      ? `<button class="result" data-cid="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">CID ${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">${escapeHtml(row.descricao || 'Descrição indisponível')}</span><span class="result-meta">${row.procedimentos} procedimento(s) no recorte</span></button>`
       : `<button class="result ${state.detail?.codigo === row.codigo ? 'active' : ''}" data-procedure="${escapeHtml(row.codigo)}"><span class="result-head"><span class="code">${escapeHtml(row.codigo)}</span><span class="chevron">›</span></span><span class="result-name">${escapeHtml(row.nome)}</span></button>`).join('')
       : '<div class="empty">Nenhum resultado neste recorte. Tente outra palavra ou selecione “Todos os procedimentos”.</div>';
   } catch (error) { $('results').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; }
@@ -83,9 +83,9 @@ function renderDetail() {
     <div class="detail-top"><span class="pill">PROCEDIMENTO ${escapeHtml(row.codigo)}</span><button class="link-button" data-copy-code="${escapeHtml(row.codigo)}">Copiar código</button></div>
     <h2 class="detail-title">${escapeHtml(row.nome)}</h2>
     <p class="muted">${escapeHtml(row.descricao || 'A planilha não traz descrição para este procedimento.')}</p>
-    <div class="detail-section"><h3>CIDs relacionados <span class="count">${row.cids.length}</span></h3><p class="section-intro">Selecione um CID para incluir no resumo. A relação e o tipo vêm da planilha.</p><div class="cid-list">${cids || '<span class="muted">Nenhum CID informado.</span>'}</div>${cidDescription}</div>
-    <div class="detail-section"><h3>OPM compatíveis com o procedimento</h3><p class="section-intro">${state.selectedCid ? `Relações oficiais do SIGTAP 06/2026 para este procedimento. O CID ${escapeHtml(state.selectedCid)} foi selecionado para o resumo, mas não altera a lista de compatibilidades. Confira registro, condições e adequação clínica antes do uso.` : 'Selecione um CID acima para consultar as OPM vinculadas oficialmente ao procedimento. A ausência nesta lista, isoladamente, não comprova proibição.'}</p><form id="item-form" class="item-search"><input id="item-query" type="search" placeholder="Filtrar OPM por nome ou código" aria-label="Buscar OPM" ${state.selectedCid ? '' : 'disabled'}><button type="submit" ${state.selectedCid ? '' : 'disabled'}>Filtrar</button></form><div id="item-results" class="item-results" ${state.selectedCid ? '' : 'hidden'}>${state.selectedCid ? '<div class="empty">Carregando OPM…</div>' : ''}</div><div id="chosen-items"></div></div>
-    <div class="detail-section"><h3>Resumo para copiar</h3><p class="section-intro">Competência informada: ${escapeHtml(row.competencia)} · Status: ${escapeHtml(statusLabel)}</p><div id="summary" class="summary"></div><button id="copy-summary" class="primary-button">Copiar resumo</button><span id="copy-feedback" class="feedback"></span></div>`;
+    <div class="detail-section"><h3>CIDs relacionados <span class="count">${row.cids.length}</span></h3><p class="section-intro">Selecione um CID para incluir no resumo. Vínculos da planilha local.</p><div class="cid-list">${cids || '<span class="muted">Nenhum CID informado.</span>'}</div>${cidDescription}</div>
+    <div class="detail-section"><h3>OPM compatíveis</h3><p class="section-intro">${state.selectedCid ? 'Relações oficiais do SIGTAP 06/2026 vinculadas ao procedimento. O CID não altera a lista. Confirme registro e adequação clínica antes do uso.' : 'Selecione um CID para consultar as OPM vinculadas ao procedimento.'}</p><form id="item-form" class="item-search"><input id="item-query" type="search" placeholder="Filtrar OPM por nome ou código" aria-label="Buscar OPM" ${state.selectedCid ? '' : 'disabled'}><button type="submit" ${state.selectedCid ? '' : 'disabled'}>Filtrar</button></form><div id="item-results" class="item-results" ${state.selectedCid ? '' : 'hidden'}>${state.selectedCid ? '<div class="empty">Carregando OPM…</div>' : ''}</div><div id="chosen-items"></div></div>
+    <div class="detail-section"><h3>Resumo</h3><p class="section-intro">Competência informada: ${escapeHtml(row.competencia)} · Status: ${escapeHtml(statusLabel)}</p><div id="summary" class="summary"></div><button id="copy-summary" class="primary-button">Copiar resumo</button><span id="copy-feedback" class="feedback"></span></div>`;
   renderChosenItems();
   renderSummary();
 }
@@ -100,7 +100,7 @@ function renderItems() {
 function renderChosenItems() {
   const box = $('chosen-items');
   if (!box) return;
-  box.innerHTML = state.chosenItems.length ? `<p class="section-intro">Itens com relação de compatibilidade no SIGTAP 06/2026</p>${state.chosenItems.map((item) => `<div class="selection"><div class="selection-name"><strong>${escapeHtml(item.codigo)}</strong>${escapeHtml(item.nome)}<br><span class="muted">Quantidade permitida na relação: ${item.qtd_maxima_item}</span></div><div class="selection-actions"><label>Quantidade <span class="quantity-control"><button type="button" aria-label="Diminuir ${escapeHtml(item.codigo)}" data-decrease-item="${escapeHtml(item.codigo)}" ${item.quantidade <= 1 ? 'disabled' : ''}>−</button><input type="number" min="1" max="${item.qtd_maxima_item}" value="${item.quantidade}" data-item-quantity="${escapeHtml(item.codigo)}"><button type="button" aria-label="Aumentar ${escapeHtml(item.codigo)}" data-increase-item="${escapeHtml(item.codigo)}" ${item.quantidade >= item.qtd_maxima_item ? 'disabled' : ''}>+</button></span></label><button class="remove-item" type="button" data-remove-item="${escapeHtml(item.codigo)}">Remover</button></div></div>`).join('')}` : '';
+  box.innerHTML = state.chosenItems.length ? state.chosenItems.map((item) => `<div class="selection"><div class="selection-name"><strong>${escapeHtml(item.codigo)}</strong>${escapeHtml(item.nome)}<br><span class="muted">Quantidade permitida na relação: ${item.qtd_maxima_item}</span></div><div class="selection-actions"><label>Quantidade <span class="quantity-control"><button type="button" aria-label="Diminuir ${escapeHtml(item.codigo)}" data-decrease-item="${escapeHtml(item.codigo)}" ${item.quantidade <= 1 ? 'disabled' : ''}>−</button><input type="number" min="1" max="${item.qtd_maxima_item}" value="${item.quantidade}" data-item-quantity="${escapeHtml(item.codigo)}"><button type="button" aria-label="Aumentar ${escapeHtml(item.codigo)}" data-increase-item="${escapeHtml(item.codigo)}" ${item.quantidade >= item.qtd_maxima_item ? 'disabled' : ''}>+</button></span></label><button class="remove-item" type="button" data-remove-item="${escapeHtml(item.codigo)}">Remover</button></div></div>`).join('') : '';
 }
 
 function summaryText() {
@@ -109,7 +109,7 @@ function summaryText() {
   const lines = [`eaSIGTAP — consulta à planilha SIGTAP`, `Competência informada: ${row.competencia}`, `Procedimento: ${row.codigo} — ${row.nome}`, `CID selecionado: ${state.selectedCid || 'não selecionado'}`];
   if (state.chosenItems.length) {
     lines.push('Itens OPM com relação de compatibilidade SIGTAP 06/2026, selecionados manualmente:');
-    state.chosenItems.forEach((item) => lines.push(`- ${item.codigo} — ${item.nome} | quantidade ${item.quantidade} | máximo informado para o item ${item.qtd_maxima_item}`));
+    state.chosenItems.forEach((item) => lines.push(`- ${item.codigo} — ${item.nome} | quantidade ${item.quantidade} | quantidade permitida na relação ${item.qtd_maxima_item}`));
   } else lines.push('Itens OPM: nenhum selecionado');
   lines.push('Fontes: planilha Sigtap - UGPIA.xlsx e SIGTAP oficial 06/2026; confirmar condições de registro e adequação clínica antes do uso.');
   return lines.join('\n');
@@ -186,5 +186,16 @@ document.addEventListener('input', (event) => {
 
 let timer;
 $('query').addEventListener('input', (event) => { clearTimeout(timer); state.query = event.target.value.trim(); timer = setTimeout(loadResults, 220); });
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('theme-toggle').textContent = theme === 'dark' ? 'Tema claro' : 'Tema escuro';
+  document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0b151a' : '#f3f7f6';
+}
+$('theme-toggle').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(theme);
+  try { localStorage.setItem('easigtap-theme', theme); } catch {}
+});
+applyTheme(document.documentElement.dataset.theme);
 updateTabs();
 loadResults();
