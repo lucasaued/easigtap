@@ -76,9 +76,9 @@ function renderDetail() {
   const statusLabel = row.status_dados === 'importado_com_pendencias' ? 'importado com pendências' : row.status_dados.replaceAll('_', ' ');
   $('detail-placeholder').hidden = true;
   $('detail').hidden = false;
-  const cids = row.cids.map((cid) => `<button class="cid-chip ${state.selectedCid === cid.codigo ? 'selected' : ''}" data-select-cid="${escapeHtml(cid.codigo)}" title="${escapeHtml(cid.descricao || 'Descrição indisponível na fonte CID-10 V2008')}">${escapeHtml(cid.codigo)}<small>${cid.tipo === 'principal' ? 'Principal' : 'Secundário'}</small></button>`).join('');
+  const cids = row.cids.map((cid) => `<button class="cid-chip ${state.selectedCid === cid.codigo ? 'selected' : ''}" data-select-cid="${escapeHtml(cid.codigo)}" title="${escapeHtml(cid.descricao || 'Descrição indisponível')}">${escapeHtml(cid.codigo)}<small>${cid.tipo === 'principal' ? 'Principal' : 'Secundário'}</small></button>`).join('');
   const chosenCid = row.cids.find((cid) => cid.codigo === state.selectedCid);
-  const cidDescription = chosenCid ? `<div class="cid-description"><strong>CID ${escapeHtml(chosenCid.codigo)}</strong><span>${chosenCid.descricao ? escapeHtml(chosenCid.descricao) : 'Descrição indisponível na fonte CID-10 V2008 do DATASUS. Confira o código na fonte oficial.'}</span>${chosenCid.fonte_descricao ? '<small>Descrição: DATASUS CID-10 V2008 · Relação com procedimento: planilha local</small>' : ''}<div id="cid-related" class="cid-related">Carregando procedimentos relacionados…</div></div>` : '';
+  const cidDescription = chosenCid ? `<div class="cid-description"><strong>CID ${escapeHtml(chosenCid.codigo)}</strong><span>${chosenCid.descricao ? escapeHtml(chosenCid.descricao) : 'Descrição indisponível. Confira o código na fonte oficial.'}</span>${chosenCid.fonte_descricao ? '<small>Descrição: SIGTAP 06/2026 · Relação com procedimento: planilha local</small>' : ''}</div>` : '';
   $('detail').innerHTML = `
     <div class="detail-top"><span class="pill">PROCEDIMENTO ${escapeHtml(row.codigo)}</span><button class="link-button" data-copy-code="${escapeHtml(row.codigo)}">Copiar código</button></div>
     <h2 class="detail-title">${escapeHtml(row.nome)}</h2>
@@ -132,12 +132,6 @@ document.addEventListener('click', async (event) => {
     state.chosenItems = [];
     renderDetail();
     loadSuggestedItems('');
-    try {
-      const rows = await api(`/api/cids/${encodeURIComponent(code)}/procedimentos?scope=${encodeURIComponent(state.scope)}`);
-      const box = $('cid-related');
-      if (state.selectedCid !== code || !box) return;
-      box.innerHTML = `<strong>Procedimentos relacionados neste recorte (${rows.length}${rows.length === 60 ? '+' : ''})</strong>${rows.slice(0, 8).map((row) => `<button type="button" class="related-procedure" data-procedure="${escapeHtml(row.codigo)}"><span>${escapeHtml(row.codigo)} · ${escapeHtml(row.nome)}</span>${row.descricao ? `<small>${escapeHtml(row.descricao.slice(0, 150))}</small>` : ''}</button>`).join('') || '<span>Nenhum procedimento neste recorte.</span>'}`;
-    } catch (error) { if ($('cid-related')) $('cid-related').textContent = error.message; }
     return;
   }
   const add = event.target.closest('[data-add-item]');
